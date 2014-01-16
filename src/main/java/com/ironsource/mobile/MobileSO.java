@@ -33,7 +33,7 @@ public class MobileSO extends SystemObjectImpl {
 	private int serverPort;
 	
 	private ADBConnection adbConnection;
-	AutomatorService uiAutomatorClient; 
+	private AutomatorService uiAutomatorClient; 
 	
 
 
@@ -52,7 +52,7 @@ public class MobileSO extends SystemObjectImpl {
 		adbConnection.startUiAutomatorServer();
 		adbConnection.startRobotiumServer();
 		
-		uiAutomatorClient = DeviceClient.getUiAutomatorClient("192.168.56.101:9008");
+		uiAutomatorClient = DeviceClient.getUiAutomatorClient("http://192.168.56.101:9008");
 		
 		report.report("Initiate moblie client");
 		robotiumClient = new MobileClient(serverHost, serverPort);
@@ -103,6 +103,12 @@ public class MobileSO extends SystemObjectImpl {
 	 * This can be a good place to free resources.<br>
 	 */
 	public void close() {
+		try {
+			adbConnection.terminateUiAutomatorServer();
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 		super.close();
 	}
 

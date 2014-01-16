@@ -1,31 +1,50 @@
 package com.ironsource.mobile;
 
-import java.io.IOException;
 import java.util.List;
 
 import jsystem.framework.report.Reporter;
 import jsystem.framework.system.SystemObjectImpl;
 
-import com.android.ddmlib.AdbCommandRejectedException;
 import com.android.ddmlib.AndroidDebugBridge;
+import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
 import com.android.ddmlib.IDevice;
-import com.android.ddmlib.IShellOutputReceiver;
 import com.android.ddmlib.MultiLineReceiver;
-import com.android.ddmlib.ShellCommandUnresponsiveException;
-import com.android.ddmlib.TimeoutException;
+import com.android.ddmlib.NullOutputReceiver;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.ddmlib.logcat.LogCatReceiverTask;
 
-public class ADBConnection extends SystemObjectImpl {
+public class ADBConnection extends SystemObjectImpl implements IDeviceChangeListener{
 
 	private final String ROBOTIUM_SERVER_PKG = "il.co.topq.mobile.server.application";
 	private final String ROBOTIUM_SERVER_ACTIVITY = "RobotiumServerActivity";
 
 	private IDevice device;
-
+    private AndroidDebugBridge adb;
+    
 	public void initialize() throws Exception {
 		AndroidDebugBridge.initIfNeeded(false);
-		device = getDevice();
+		adb = AndroidDebugBridge.createBridge();
+		Thread.sleep(2000);
+		if(adb.hasInitialDeviceList()) {
+			device = adb.getDevices()[0];
+		} else { 
+			waitForDeviceToConnect(5000);
+		}
+	}
+
+	private void waitForDeviceToConnect(int timeoutForDeviceConnection) throws Exception {
+		final long start = System.currentTimeMillis();
+		while (device == null) {
+			if (System.currentTimeMillis() - start > timeoutForDeviceConnection) {
+				throw new Exception("Cound not find conneced device");
+			}
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) {
+				// Not important
+			}
+		}
+		
 	}
 
 	public void clearLogcat() throws Exception {
@@ -64,10 +83,9 @@ public class ADBConnection extends SystemObjectImpl {
 				boolean running = true;
 				for (String line : lines) {
 					if (line.contains("Error")) {
-						continue;
-					} else {
 						running = false;
-						break;
+					} else {
+						continue;
 					}
 				}
 				if (!running) {
@@ -81,48 +99,12 @@ public class ADBConnection extends SystemObjectImpl {
 
 	public void startUiAutomatorServer() throws Exception {
 
-		Runnable uiAutomatorServer = new Runnable() {
-
-			@Override
-			public void run() {
-				try {
-					device.executeShellCommand("uiautomator runtest uiautomator-stub.jar bundle.jar -c com.github.uiautomatorstub.Stub",
-							new MultiLineReceiver() {
-
-								@Override
-								public boolean isCancelled() {
-									// TODO Auto-generated method stub
-									return false;
-								}
-
-								@Override
-								public void processNewLines(String[] lines) {
-									for (String line : lines) {
-										System.out.println(line);
-									}
-								}
-							});
-				} catch (TimeoutException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (AdbCommandRejectedException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (ShellCommandUnresponsiveException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
-			}
-		};
-		Thread uiServerThread = new Thread(uiAutomatorServer);
-		uiServerThread.setDaemon(true); // important, otherwise JVM does not
-										// exit at end execution
-		uiServerThread.start();
-		Thread.sleep(2000);
+		device.executeShellCommand("uiautomator runtest uiautomator-stub.jar bundle.jar -c com.github.uiautomatorstub.Stub &", NullOutputReceiver.getReceiver());
+		device.createForward(9008, 9008);
+	}
+	public void terminateUiAutomatorServer() throws Exception {
+		
+		device.executeShellCommand("killall uiautomator", NullOutputReceiver.getReceiver());
 	}
 
 	public List<LogCatMessage> getLogcatMessages(FilteredLogcatListener filteredLogcatListener) throws Exception {
@@ -141,46 +123,40 @@ public class ADBConnection extends SystemObjectImpl {
 
 	}
 
-	private IDevice getDevice() throws Exception {
-		AndroidDebugBridge adb = AndroidDebugBridge.createBridge();
-
-		int trials = 10;
-		while (trials > 0) {
-			Thread.sleep(50);
-			if (adb.isConnected()) {
-				break;
-			}
-			trials--;
-		}
-
-		if (!adb.isConnected()) {
-			System.out.println("Couldn't connect to ADB server");
-			throw new Exception();
-		}
-
-		trials = 10;
-		while (trials > 0) {
-			Thread.sleep(50);
-			if (adb.hasInitialDeviceList()) {
-				break;
-			}
-			trials--;
-		}
-
-		if (!adb.hasInitialDeviceList()) {
-			System.out.println("Couldn't list connected devices");
-			throw new Exception();
-		}
-
-		return adb.getDevices()[0];
-	}
 
 	/**
 	 * The close method is called in the end of the while execution.<br>
 	 * This can be a good place to free resources.<br>
 	 */
-	public void close() {
-		AndroidDebugBridge.disconnectBridge();
+	public void close()  {
 		super.close();
+	}
+	
+	public static void main(String[] args) throws Exception {
+		ADBConnection con = new ADBConnection();
+		con.initialize();
+		con.startUiAutomatorServer();
+		Thread.sleep(10000);
+		con.terminateUiAutomatorServer();
+		
+		
+	}
+
+	@Override
+	public void deviceConnected(IDevice device) {
+		this.device = device;
+		
+	}
+
+	@Override
+	public void deviceDisconnected(IDevice device) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void deviceChanged(IDevice device, int changeMask) {
+		// TODO Auto-generated method stub
+		
 	}
 }
