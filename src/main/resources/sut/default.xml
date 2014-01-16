@@ -1,0 +1,7 @@
+<sut>
+	<mobileSO>
+		<class>com.ironsource.mobile.MobileSO</class>
+		<serverIp>192.168.56.101</serverIp>
+		<serverPort>4321</serverPort>
+	</mySystemObject>
+</sut>
