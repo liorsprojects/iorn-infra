@@ -4,10 +4,7 @@ import il.co.topq.mobile.client.impl.MobileClient;
 import il.co.topq.mobile.client.interfaces.MobileClientInterface;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
-
-import javax.swing.text.StyledEditorKit.ForegroundAction;
 
 import jsystem.framework.system.SystemObjectImpl;
 
