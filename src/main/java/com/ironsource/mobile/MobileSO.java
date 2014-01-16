@@ -41,17 +41,10 @@ public class MobileSO extends SystemObjectImpl {
 		logcat.initialize();
 	}
 	
-	
-	//TODO - fix@@@@@
-	public String capturescreen(/*String name, String path*/) throws Exception {
+
+	public File capturescreen() throws Exception {
 		File f = mobileClient.takeScreenshot();
-		return f.getAbsolutePath();
-//		if (f.renameTo(new File(path + File.separator + name + ".jpg"))) {
-//			report.report("screenshot saved successful!");
-//		} else {
-//			report.report("screenshot failed to save");
-//		}
-//		return path + File.separator + name + ".jpg";
+		return f;
 	}
 	
 	
