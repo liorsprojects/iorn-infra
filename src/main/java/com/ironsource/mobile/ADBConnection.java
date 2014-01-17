@@ -1,5 +1,6 @@
 package com.ironsource.mobile;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
@@ -8,6 +9,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+
+import javax.imageio.ImageIO;
 
 import jsystem.framework.report.Reporter;
 import jsystem.framework.system.SystemObjectImpl;
@@ -19,6 +22,7 @@ import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.IShellOutputReceiver;
 import com.android.ddmlib.MultiLineReceiver;
+import com.android.ddmlib.RawImage;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.ddmlib.logcat.LogCatReceiverTask;
 
@@ -65,12 +69,18 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		}
 
 	}
+	
+	public File getScreenshotWithAdb(File screenshotFile) throws Exception {
+		RawImage ri = device.getScreenshot();
+		return display(device.getSerialNumber(), ri, screenshotFile);
+	}
 
 	public void clearLogcat() throws Exception {
 		report.report("send clear logcat command");
 		String cmd = "logcat -c";
 		String response = executeShellCommand(cmd);
 		boolean success = false;
+		//TODO - look for case of fail
 		if(response != null) {
 			report.report("response " + response);
 			success = true;
@@ -81,7 +91,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 
 	private String executeShellCommand(String cmd) throws Exception {
 		long maxTimeToWait = 10000L;
-		shellOuput = null;
+		shellOuput = "";
 		try {
 			device.executeShellCommand(cmd, this, maxTimeToWait, TimeUnit.MILLISECONDS);
 		}catch (Exception e) {
@@ -246,7 +256,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 
 	@Override
 	public void addOutput(byte[] data, int offset, int length) {
-		report.report("caled");
+		report.report("called");
 		shellOuput = new String(data);
 		
 	}
@@ -261,5 +271,25 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 	public boolean isCancelled() {
 		// TODO Auto-generated method stub
 		return false;
+	}
+	
+	private static File display(String device, RawImage rawImage, File screenshotFile) throws Exception {
+		BufferedImage image = new BufferedImage(rawImage.width, rawImage.height, BufferedImage.TYPE_INT_RGB);
+		// Dimension size = new Dimension(image.getWidth(), image.getHeight());
+
+		int index = 0;
+		int indexInc = rawImage.bpp >> 3;
+		for (int y = 0; y < rawImage.height; y++) {
+			for (int x = 0; x < rawImage.width; x++, index += indexInc) {
+				int value = rawImage.getARGB(index);
+				image.setRGB(x, y, value);
+			}
+		}
+		if (screenshotFile == null) {
+			screenshotFile = File.createTempFile("screenshot", ".png");
+
+		}
+		ImageIO.write(image, "png", screenshotFile);
+		return screenshotFile;
 	}
 }
