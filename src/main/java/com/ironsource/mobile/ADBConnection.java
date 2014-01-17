@@ -1,33 +1,52 @@
 package com.ironsource.mobile;
 
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import jsystem.framework.report.Reporter;
 import jsystem.framework.system.SystemObjectImpl;
 
+import org.apache.commons.io.FileUtils;
+
 import com.android.ddmlib.AndroidDebugBridge;
 import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
 import com.android.ddmlib.IDevice;
+import com.android.ddmlib.IShellOutputReceiver;
 import com.android.ddmlib.MultiLineReceiver;
-import com.android.ddmlib.NullOutputReceiver;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.ddmlib.logcat.LogCatReceiverTask;
 
-public class ADBConnection extends SystemObjectImpl implements IDeviceChangeListener{
+//TODO - forward also automatically
+public class ADBConnection extends SystemObjectImpl implements IDeviceChangeListener, IShellOutputReceiver {
 
 	private final String ROBOTIUM_SERVER_PKG = "il.co.topq.mobile.server.application";
 	private final String ROBOTIUM_SERVER_ACTIVITY = "RobotiumServerActivity";
 
 	private IDevice device;
-    private AndroidDebugBridge adb;
-    
-	public void initialize() throws Exception {
+	private AndroidDebugBridge adb;
+	private File adbLocation;
+	private String shellOuput;
+	private boolean cancelShellCommand = false;
+
+	@Override
+	public void init() throws Exception {
+		super.init();
 		AndroidDebugBridge.initIfNeeded(false);
-		adb = AndroidDebugBridge.createBridge();
-		Thread.sleep(2000);
-		if(adb.hasInitialDeviceList()) {
+		adbLocation = findAdbFile();
+		adb = AndroidDebugBridge.createBridge(adbLocation.getAbsolutePath() + File.separator + "adb", true);
+		if (adb == null) {
+			throw new IllegalStateException("Failed to create ADB bridge");
+		}
+		AndroidDebugBridge.addDeviceChangeListener(this);
+		if (adb.hasInitialDeviceList()) {
 			device = adb.getDevices()[0];
-		} else { 
+		} else {
 			waitForDeviceToConnect(5000);
 		}
 	}
@@ -44,67 +63,98 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 				// Not important
 			}
 		}
-		
+
 	}
 
 	public void clearLogcat() throws Exception {
-		report.report("send clear log command via adb");
-		device.executeShellCommand("logcat -c", new MultiLineReceiver() {
+		report.report("send clear logcat command");
+		String cmd = "logcat -c";
+		String response = executeShellCommand(cmd);
+		boolean success = false;
+		if(response != null) {
+			report.report("response " + response);
+			success = true;
+		}
+		if (!success)
+			throw new Exception("could not clear logcat");
+	}
 
-			@Override
-			public boolean isCancelled() {
-				// TODO Auto-generated method stub
-				return false;
-			}
+	private String executeShellCommand(String cmd) throws Exception {
+		long maxTimeToWait = 10000L;
+		shellOuput = null;
+		try {
+			device.executeShellCommand(cmd, this, maxTimeToWait, TimeUnit.MILLISECONDS);
+		}catch (Exception e) {
+			throw e;
+		}
+		return shellOuput;
+	}
+	public boolean startActivity(String packageName, String activityName) throws Exception {
+		String activity = String.format("%s/.%s", packageName, activityName);
+		report.report("starting activity: " + activity);
+		executeShellCommand("am start -n " + activity);
+		if (shellOuput.contains("Error type 3")) {
+			report.report("activity not found");
+			return false;
+		}
+		return true;
 
-			@Override
-			public void processNewLines(String[] lines) {
-				for (String line : lines) {
-					report.report(line);
-				}
-			}
-		});
 	}
 
 	public void startRobotiumServer() throws Exception {
-
-		String cmd = "am start -n " + ROBOTIUM_SERVER_PKG + "/" + ROBOTIUM_SERVER_PKG + "." + ROBOTIUM_SERVER_ACTIVITY;
-		
-		device.executeShellCommand(cmd, new MultiLineReceiver() {
-
-			@Override
-			public boolean isCancelled() {
-				// TODO Auto-generated method stub
-				return false;
-			}
-
-			@Override
-			public void processNewLines(String[] lines) {
-				boolean running = true;
-				for (String line : lines) {
-					if (line.contains("Error")) {
-						running = false;
-					} else {
-						continue;
-					}
-				}
-				if (!running) {
-					report.report("Could not start robotuim server", Reporter.FAIL);
-				}
-
-			}
-		});
+		report.report("starting robotium server...");
+		device.createForward(4321, 4321);
+		boolean started = startActivity(ROBOTIUM_SERVER_PKG, ROBOTIUM_SERVER_ACTIVITY);
+		if (!started) {
+			report.report("robotium server application was not found");
+			// TODO - automate the installation process: sign apk -> install apk
+			// -> forward ports
+			throw new Exception("server is not installed on the device");
+		}
 		Thread.sleep(2000);
 	}
 
 	public void startUiAutomatorServer() throws Exception {
-
-		device.executeShellCommand("uiautomator runtest uiautomator-stub.jar bundle.jar -c com.github.uiautomatorstub.Stub &", NullOutputReceiver.getReceiver());
-		device.createForward(9008, 9008);
+		report.report("startig uiautomator server");
+		if (!isUiAutomatorServerAlive()) {
+			String response = executeShellCommand("uiautomator runtest uiautomator-stub.jar bundle.jar -c com.github.uiautomatorstub.Stub &");
+			if(response.contains("Error")) {
+				// TODO - automate the installation process: ant build ->
+				// ant install -> forward ports
+				throw new Exception("uiautomator server is not on the device");
+			}
+			report.report("uiautomator server started");
+			Thread.sleep(1000);
+			device.createForward(9008, 9008);
+			return;
+		}
+		report.report("uiautomator server was already running");
 	}
+
+	public boolean isUiAutomatorServerAlive() throws Exception {
+		String response = executeShellCommand("ps | grep uiautomator");
+		if(response.contains("uiautomator")) {
+			return true;
+		}
+		return false;
+	}
+
 	public void terminateUiAutomatorServer() throws Exception {
-		
-		device.executeShellCommand("killall uiautomator", NullOutputReceiver.getReceiver());
+		report.report("about to terminate uiautomator server...");
+		boolean terminated = false;
+		if (isUiAutomatorServerAlive()) {
+			String response = executeShellCommand("killall uiautomator");
+			if(response.contains("Terminated")) {
+				terminated = true;
+			}
+		} else {
+			report.report("uiautomator server is already terminated, skipping action");
+			terminated = true;
+		}
+		if (!terminated) {
+			throw new Exception("uiautomator server could not be stopped");
+		}
+
 	}
 
 	public List<LogCatMessage> getLogcatMessages(FilteredLogcatListener filteredLogcatListener) throws Exception {
@@ -123,40 +173,93 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 
 	}
 
-
 	/**
 	 * The close method is called in the end of the while execution.<br>
 	 * This can be a good place to free resources.<br>
 	 */
-	public void close()  {
+	public void close() {
+		report.report("closing ADBConnection");
+		try {
+			terminateUiAutomatorServer();
+		} catch (Exception e) {
+			report.report(e.getMessage(), Reporter.WARNING);
+		}
 		super.close();
-	}
-	
-	public static void main(String[] args) throws Exception {
-		ADBConnection con = new ADBConnection();
-		con.initialize();
-		con.startUiAutomatorServer();
-		Thread.sleep(10000);
-		con.terminateUiAutomatorServer();
-		
-		
 	}
 
 	@Override
 	public void deviceConnected(IDevice device) {
 		this.device = device;
-		
+
 	}
 
 	@Override
 	public void deviceDisconnected(IDevice device) {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
 	public void deviceChanged(IDevice device, int changeMask) {
 		// TODO Auto-generated method stub
+
+	}
+
+	private File findAdbFile() throws IOException {
+		// Check if the adb file is in the current folder
+		File[] adbFile = new File(".").listFiles(new FileFilter() {
+			@Override
+			public boolean accept(File pathname) {
+				return pathname.getName().equals("adb") || pathname.getName().equals("adb.exe");
+			}
+		});
+		if (adbFile != null && adbFile.length > 0) {
+			return adbFile[0].getParentFile();
+		}
+
+		final String androidHome = System.getenv("ANDROID_HOME");
+		if (androidHome == null || androidHome.isEmpty()) {
+			throw new IOException("ANDROID_HOME environment variable is not set");
+		}
+
+		final File root = new File(androidHome);
+		if (!root.exists()) {
+			throw new IOException("Android home: " + root.getAbsolutePath() + " does not exist");
+		}
+
+		try {
+			// String[] extensions = { "exe" };
+			Collection<File> files = FileUtils.listFiles(root, null, true);
+			for (Iterator<File> iterator = files.iterator(); iterator.hasNext();) {
+				File file = (File) iterator.next();
+				// TODO: Eran - I think should be using equals as compareTo is
+				// more sortedDataStructure oriented.
+				if (file.getName().equals("adb.exe") || file.getName().equals("adb")) {
+					return file.getParentFile();
+				}
+			}
+		} catch (Exception e) {
+			throw new IOException("Failed to find adb in " + root.getAbsolutePath());
+		}
+		throw new IOException("Failed to find adb in " + root.getAbsolutePath());
+	}
+
+	@Override
+	public void addOutput(byte[] data, int offset, int length) {
+		report.report("caled");
+		shellOuput = new String(data);
 		
+	}
+
+	@Override
+	public void flush() {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public boolean isCancelled() {
+		// TODO Auto-generated method stub
+		return false;
 	}
 }

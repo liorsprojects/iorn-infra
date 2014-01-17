@@ -2,6 +2,7 @@ package com.ironsource.mobile;
 
 import il.co.topq.mobile.client.impl.MobileClient;
 import il.co.topq.mobile.client.interfaces.MobileClientInterface;
+import il.co.topq.mobile.common.datamodel.CommandResponse;
 
 import java.io.File;
 import java.io.IOException;
@@ -11,6 +12,7 @@ import java.util.List;
 
 import javax.swing.text.StyledEditorKit.ForegroundAction;
 
+import org.python.modules.re;
 import org.topq.uiautomator.AutomatorService;
 import org.topq.uiautomator.Selector;
 import org.topq.uiautomator.client.DeviceClient;
@@ -25,15 +27,15 @@ import com.android.ddmlib.logcat.LogCatFilter;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.uiautomator.core.UiObjectNotFoundException;
 
+//TODO - use CommandResponse for robotium commands verifications
 public class MobileSO extends SystemObjectImpl {
 
-	public MobileClientInterface robotiumClient;
 
 	private String serverHost;
-	private int serverPort;
-	
+	private int serverPort;	
 	private ADBConnection adbConnection;
 	private AutomatorService uiAutomatorClient; 
+	private MobileClientInterface robotiumClient;
 	
 
 
@@ -46,40 +48,27 @@ public class MobileSO extends SystemObjectImpl {
 	public void init() throws Exception {
 		super.init();
 		
-		
 		adbConnection = new ADBConnection();
-		adbConnection.initialize();
+		adbConnection.init();
+	
 		adbConnection.startUiAutomatorServer();
 		adbConnection.startRobotiumServer();
 		
+		report.report("Initiate ui-automator client");
 		uiAutomatorClient = DeviceClient.getUiAutomatorClient("http://192.168.56.101:9008");
 		
-		report.report("Initiate moblie client");
+		report.report("Initiate robotium client");
 		robotiumClient = new MobileClient(serverHost, serverPort);
-		
-		report.report("Launch MCTester app main activity");
-		robotiumClient.launch("com.mobilecore.mctester.MainActivity");
-
 		
 	}
 	
-
-	public File capturescreen() throws Exception {
+	
+	public File capturescreenWithRobotium() throws Exception {
+		report.report("capture screen");
 		File f = robotiumClient.takeScreenshot();
 		return f;
 	}
 		
-	public void clearLogcat() throws Exception {
-		adbConnection.clearLogcat();
-	}
-	
-	public void clickOnStickee() throws Exception {
-		Selector selector = new Selector();
-		selector.setDescription("Show stickee");
-		selector.setClassName("android.widget.Button");
-		uiAutomatorClient.click(selector);
-	}
-	
 	public List<LogCatMessage> getFilterdMessages() throws Exception {
 		List<LogCatFilter> filters = LogCatFilter.fromString("\"RS\"", LogLevel.DEBUG);
 		//TODO - remove this
@@ -103,16 +92,11 @@ public class MobileSO extends SystemObjectImpl {
 	 * This can be a good place to free resources.<br>
 	 */
 	public void close() {
-		try {
-			adbConnection.terminateUiAutomatorServer();
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		report.report("closing MobileSO");
 		super.close();
 	}
 
-	public MobileClientInterface getRobotiumClien() {
+	public MobileClientInterface getRobotiumClient() {
 		return robotiumClient;
 	}
 
@@ -138,6 +122,9 @@ public class MobileSO extends SystemObjectImpl {
 	
 	public AutomatorService getUiAutomatorClient() {
 		return uiAutomatorClient;
+	}
+	public ADBConnection getAdbConnection() {
+		return adbConnection;
 	}
 
 }
