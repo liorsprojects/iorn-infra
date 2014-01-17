@@ -8,18 +8,25 @@ import java.util.List;
 
 import jsystem.framework.system.SystemObjectImpl;
 
+import org.topq.uiautomator.AutomatorService;
+import org.topq.uiautomator.client.DeviceClient;
+
 import com.android.ddmlib.Log.LogLevel;
 import com.android.ddmlib.logcat.LogCatFilter;
 import com.android.ddmlib.logcat.LogCatMessage;
 
+//TODO - use CommandResponse for robotium commands verifications
 public class MobileSO extends SystemObjectImpl {
 
-	public MobileClientInterface mobileClient;
 
 	private String serverHost;
-	private int serverPort;
+	private int serverPort;	
+	private ADBConnection adbConnection;
+	private AutomatorService uiAutomatorClient; 
+	private MobileClientInterface robotiumClient;
 	
-	private Logcat logcat;
+
+
 	/**
 	 * The init() method will be called by JSystem after the instantiation of
 	 * the system object. <br>
@@ -28,33 +35,34 @@ public class MobileSO extends SystemObjectImpl {
 	 */
 	public void init() throws Exception {
 		super.init();
-		report.report("Initiate moblie client");
-		mobileClient = new MobileClient(serverHost, serverPort);
 		
-		report.report("Launch MCTester app main activity");
-		mobileClient.launch("com.mobilecore.mctester.MainActivity");
+		adbConnection = new ADBConnection();
+		adbConnection.init();
+	
+		adbConnection.startUiAutomatorServer();
+		adbConnection.startRobotiumServer();
 		
-		logcat = new Logcat();
-		logcat.initialize();
+		report.report("Initiate ui-automator client");
+		uiAutomatorClient = DeviceClient.getUiAutomatorClient("http://192.168.56.101:9008");
+		
+		report.report("Initiate robotium client");
+		robotiumClient = new MobileClient(serverHost, serverPort);
+		
 	}
 	
-
-	public File capturescreen() throws Exception {
-		File f = mobileClient.takeScreenshot();
+	
+	public File capturescreenWithRobotium() throws Exception {
+		report.report("capture screen");
+		File f = robotiumClient.takeScreenshot();
 		return f;
 	}
-	
-	
-	public void clearLogcat() throws Exception {
-		logcat.clearLogcat();
-	}
-	
+		
 	public List<LogCatMessage> getFilterdMessages() throws Exception {
 		List<LogCatFilter> filters = LogCatFilter.fromString("\"RS\"", LogLevel.DEBUG);
 		//TODO - remove this
 		//filters.add(new LogCatFilter("", "MobileCore" , "", "", "com.mobliecore.mctesterqa:mcServiceProcess", LogLevel.DEBUG));
 		List<LogCatMessage> messages = null;
-		messages = logcat.getLogcatMessages(new FilteredLogcatListener(filters, false));
+		messages = adbConnection.getLogcatMessages(new FilteredLogcatListener(filters, false));
 		
 		for (int i = 0; i < messages.size(); i++) {
 			String tag  = messages.get(i).getTag();
@@ -72,15 +80,16 @@ public class MobileSO extends SystemObjectImpl {
 	 * This can be a good place to free resources.<br>
 	 */
 	public void close() {
+		report.report("closing MobileSO");
 		super.close();
 	}
 
-	public MobileClientInterface getMobileClient() {
-		return mobileClient;
+	public MobileClientInterface getRobotiumClient() {
+		return robotiumClient;
 	}
 
-	public void setMobileClient(MobileClientInterface mobileClient) {
-		this.mobileClient = mobileClient;
+	public void setMobileClient(MobileClientInterface robotiumClient) {
+		this.robotiumClient = robotiumClient;
 	}
 
 	public String getServerHost() {
@@ -97,6 +106,13 @@ public class MobileSO extends SystemObjectImpl {
 
 	public void setServerPort(int serverPort) {
 		this.serverPort = serverPort;
+	}
+	
+	public AutomatorService getUiAutomatorClient() {
+		return uiAutomatorClient;
+	}
+	public ADBConnection getAdbConnection() {
+		return adbConnection;
 	}
 
 }

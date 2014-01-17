@@ -37,7 +37,11 @@
 			<artifactId>json-simple</artifactId>
 			<version>1.1.1</version>
 		</dependency>
-
+		<dependency>
+			<groupId>org.topq.uiautomatorClient</groupId>
+			<artifactId>uiautomator-client</artifactId>
+			<version>0.0.1-SNAPSHOT</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>

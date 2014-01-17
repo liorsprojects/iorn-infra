@@ -1,1 +1,4 @@
 target/
+jsystem*
+.testdir.tmp
+runnerState.properties
