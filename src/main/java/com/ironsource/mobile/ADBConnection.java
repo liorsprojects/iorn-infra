@@ -21,6 +21,7 @@ import com.android.ddmlib.AndroidDebugBridge;
 import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.IShellOutputReceiver;
+import com.android.ddmlib.InstallException;
 import com.android.ddmlib.MultiLineReceiver;
 import com.android.ddmlib.RawImage;
 import com.android.ddmlib.logcat.LogCatMessage;
@@ -113,15 +114,15 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 
 	public void startRobotiumServer() throws Exception {
 		report.report("starting robotium server...");
-		device.createForward(4321, 4321);
 		boolean started = startActivity(ROBOTIUM_SERVER_PKG, ROBOTIUM_SERVER_ACTIVITY);
+		device.createForward(4321, 4321);
 		if (!started) {
 			report.report("robotium server application was not found");
 			// TODO - automate the installation process: sign apk -> install apk
 			// -> forward ports
 			throw new Exception("server is not installed on the device");
 		}
-		Thread.sleep(2000);
+		Thread.sleep(3000);
 	}
 
 	public void startUiAutomatorServer() throws Exception {
@@ -134,8 +135,9 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 				throw new Exception("uiautomator server is not on the device");
 			}
 			report.report("uiautomator server started");
-			Thread.sleep(1000);
+			Thread.sleep(2000);
 			device.createForward(9008, 9008);
+			Thread.sleep(2000);
 			return;
 		}
 		report.report("uiautomator server was already running");
@@ -149,6 +151,13 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		return false;
 	}
 
+	public void installPackage(String apkLocation, boolean reinstall) throws InstallException {
+		final String result = device.installPackage(apkLocation, reinstall);
+		if (result != null) {
+			throw new InstallException("Failed to install: " + result, null);
+		}
+	}
+	
 	public void terminateUiAutomatorServer() throws Exception {
 		report.report("about to terminate uiautomator server...");
 		boolean terminated = false;
