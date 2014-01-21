@@ -4,7 +4,6 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -22,7 +21,6 @@ import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
 import com.android.ddmlib.IDevice;
 import com.android.ddmlib.IShellOutputReceiver;
 import com.android.ddmlib.InstallException;
-import com.android.ddmlib.MultiLineReceiver;
 import com.android.ddmlib.RawImage;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.ddmlib.logcat.LogCatReceiverTask;
@@ -37,6 +35,11 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 	private AndroidDebugBridge adb;
 	private File adbLocation;
 	private String shellOuput;
+	
+	private MobileCoreLogcatRecorder mobileCoreLogcatRecorder;
+	
+	
+
 	private boolean cancelShellCommand = false;
 
 	@Override
@@ -54,7 +57,14 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		} else {
 			waitForDeviceToConnect(5000);
 		}
+		mobileCoreLogcatRecorder = new MobileCoreLogcatRecorder(device);
 	}
+	
+	public List<LogCatMessage> getMobileCoreLogcatMessages() throws Exception {
+		mobileCoreLogcatRecorder.recordMobileCoreLogcatMessages();
+		return mobileCoreLogcatRecorder.getRecordedMessages();
+	}
+	
 
 	private void waitForDeviceToConnect(int timeoutForDeviceConnection) throws Exception {
 		final long start = System.currentTimeMillis();
@@ -175,12 +185,15 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		}
 
 	}
+	
+	
 
 	public List<LogCatMessage> getLogcatMessages(FilteredLogcatListener filteredLogcatListener) throws Exception {
 
 		LogCatReceiverTask logCatReceiverTask = new LogCatReceiverTask(device);
 
 		logCatReceiverTask.addLogCatListener(filteredLogcatListener);
+		
 
 		new Thread(logCatReceiverTask).start();
 
@@ -191,6 +204,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		return filteredLogcatListener.getReturnedMessages();
 
 	}
+	
 
 	/**
 	 * The close method is called in the end of the while execution.<br>
@@ -300,5 +314,9 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		}
 		ImageIO.write(image, "png", screenshotFile);
 		return screenshotFile;
+	}
+	
+	public MobileCoreLogcatRecorder getMobileCoreLogcatRecorder() {
+		return mobileCoreLogcatRecorder;
 	}
 }

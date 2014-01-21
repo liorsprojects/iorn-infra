@@ -1,9 +1,7 @@
 package com.ironsource.mobile;
 
-import java.util.ArrayList;
 import java.util.List;
-
-import jsystem.extensions.report.html.Report;
+import java.util.Vector;
 
 import com.android.ddmlib.logcat.LogCatFilter;
 import com.android.ddmlib.logcat.LogCatListener;
@@ -12,13 +10,13 @@ import com.android.ddmlib.logcat.LogCatMessage;
 public class FilteredLogcatListener implements LogCatListener {
 
 	private List<LogCatFilter> filters;
-	private List<LogCatMessage> returnedMessages;
+	private Vector<LogCatMessage> returnedMessages;
 	private boolean partial;
 
 	public FilteredLogcatListener(List<LogCatFilter> filters, boolean partial) {
 		this.partial = partial;
 		this.filters = filters;
-		this.returnedMessages = new ArrayList<LogCatMessage>();
+		this.returnedMessages = new Vector<LogCatMessage>();
 	}
 
 	@Override

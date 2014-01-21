@@ -39,7 +39,7 @@ public class MobileSO extends SystemObjectImpl {
 		adbConnection = new ADBConnection();
 		adbConnection.init();
 	
-		//adbConnection.startUiAutomatorServer();
+		adbConnection.startUiAutomatorServer();
 		adbConnection.startRobotiumServer();
 		
 		report.report("Initiate ui-automator client");
