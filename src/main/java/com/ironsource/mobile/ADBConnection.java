@@ -35,11 +35,11 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 	private AndroidDebugBridge adb;
 	private File adbLocation;
 	private String shellOuput;
-	
 	private MobileCoreLogcatRecorder mobileCoreLogcatRecorder;
 	
 	
 
+	@SuppressWarnings("unused")
 	private boolean cancelShellCommand = false;
 
 	@Override
@@ -60,6 +60,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		mobileCoreLogcatRecorder = new MobileCoreLogcatRecorder(device);
 	}
 	
+	//return all logcat messages filtered by messages that contain "RS" String
 	public List<LogCatMessage> getMobileCoreLogcatMessages() throws Exception {
 		mobileCoreLogcatRecorder.recordMobileCoreLogcatMessages();
 		return mobileCoreLogcatRecorder.getRecordedMessages();
@@ -100,6 +101,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 			throw new Exception("could not clear logcat");
 	}
 
+	//execute adb shell command with default timeout of 10 seconds and return the response form the shell 
 	private String executeShellCommand(String cmd) throws Exception {
 		long maxTimeToWait = 10000L;
 		shellOuput = "";
@@ -110,6 +112,8 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		}
 		return shellOuput;
 	}
+	
+	//start activity with an adb command
 	public boolean startActivity(String packageName, String activityName) throws Exception {
 		String activity = String.format("%s/.%s", packageName, activityName);
 		report.report("starting activity: " + activity);
@@ -122,6 +126,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 
 	}
 
+	//call start activity to start the robotuim server application
 	public void startRobotiumServer() throws Exception {
 		report.report("starting robotium server...");
 		boolean started = startActivity(ROBOTIUM_SERVER_PKG, ROBOTIUM_SERVER_ACTIVITY);
@@ -135,6 +140,8 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		Thread.sleep(3000);
 	}
 
+	
+	//TODO - need major fix, not working good at the moment 
 	public void startUiAutomatorServer() throws Exception {
 		report.report("startig uiautomator server");
 		if (!isUiAutomatorServerAlive()) {
@@ -145,14 +152,15 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 				throw new Exception("uiautomator server is not on the device");
 			}
 			report.report("uiautomator server started");
-			Thread.sleep(2000);
+			Thread.sleep(5000);
 			device.createForward(9008, 9008);
-			Thread.sleep(2000);
+			Thread.sleep(1000);
 			return;
 		}
 		report.report("uiautomator server was already running");
 	}
 
+	
 	public boolean isUiAutomatorServerAlive() throws Exception {
 		String response = executeShellCommand("ps | grep uiautomator");
 		if(response.contains("uiautomator")) {
@@ -187,7 +195,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 	}
 	
 	
-
+	@Deprecated
 	public List<LogCatMessage> getLogcatMessages(FilteredLogcatListener filteredLogcatListener) throws Exception {
 
 		LogCatReceiverTask logCatReceiverTask = new LogCatReceiverTask(device);
