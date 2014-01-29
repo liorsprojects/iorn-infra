@@ -4,6 +4,7 @@ import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -36,8 +37,6 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 	private File adbLocation;
 	private String shellOuput;
 	private MobileCoreLogcatRecorder mobileCoreLogcatRecorder;
-	
-	
 
 	@SuppressWarnings("unused")
 	private boolean cancelShellCommand = false;
@@ -59,13 +58,30 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		}
 		mobileCoreLogcatRecorder = new MobileCoreLogcatRecorder(device);
 	}
-	
-	//return all logcat messages filtered by messages that contain "RS" String
-	public List<LogCatMessage> getMobileCoreLogcatMessages() throws Exception {
+
+	// return all logcat messages filtered by messages that contain "RS" String
+	public List<LogCatMessage> getMobileCoreLogcatMessages(MobileCoreMsgCode msgCode) throws Exception {
 		mobileCoreLogcatRecorder.recordMobileCoreLogcatMessages();
-		return mobileCoreLogcatRecorder.getRecordedMessages();
+		List<LogCatMessage> returnedMessages = null;
+		switch (msgCode) {
+		case RS:			
+			returnedMessages = mobileCoreLogcatRecorder.getRsMessages();
+			break;
+		case OFFERWALL_MANAGER:			
+			returnedMessages = mobileCoreLogcatRecorder.getOfferwallManagerMessages();
+			break;
+		case STICKEEZ_MANAGER:			
+			returnedMessages = mobileCoreLogcatRecorder.getStickeezManagerMessages();
+			break;
+		case SLIDER_MANAGER:			
+			returnedMessages = mobileCoreLogcatRecorder.getSliderManagerMessages();
+			break;
+		default:
+			returnedMessages = new ArrayList<LogCatMessage>();
+			break;
+		}
+		return returnedMessages;
 	}
-	
 
 	private void waitForDeviceToConnect(int timeoutForDeviceConnection) throws Exception {
 		final long start = System.currentTimeMillis();
@@ -81,7 +97,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		}
 
 	}
-	
+
 	public File getScreenshotWithAdb(File screenshotFile) throws Exception {
 		RawImage ri = device.getScreenshot();
 		return display(device.getSerialNumber(), ri, screenshotFile);
@@ -92,8 +108,8 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		String cmd = "logcat -c";
 		String response = executeShellCommand(cmd);
 		boolean success = false;
-		//TODO - look for case of fail
-		if(response != null) {
+		// TODO - look for case of fail
+		if (response != null) {
 			report.report("response " + response);
 			success = true;
 		}
@@ -101,19 +117,20 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 			throw new Exception("could not clear logcat");
 	}
 
-	//execute adb shell command with default timeout of 10 seconds and return the response form the shell 
+	// execute adb shell command with default timeout of 10 seconds and return
+	// the response form the shell
 	private String executeShellCommand(String cmd) throws Exception {
 		long maxTimeToWait = 10000L;
 		shellOuput = "";
 		try {
 			device.executeShellCommand(cmd, this, maxTimeToWait, TimeUnit.MILLISECONDS);
-		}catch (Exception e) {
+		} catch (Exception e) {
 			throw e;
 		}
 		return shellOuput;
 	}
-	
-	//start activity with an adb command
+
+	// start activity with an adb command
 	public boolean startActivity(String packageName, String activityName) throws Exception {
 		String activity = String.format("%s/.%s", packageName, activityName);
 		report.report("starting activity: " + activity);
@@ -123,10 +140,15 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 			return false;
 		}
 		return true;
-
 	}
 
-	//call start activity to start the robotuim server application
+	// stop activity with an adb command
+	public void stopActivity(String packageName) throws Exception {
+		report.report("force stop package: " + packageName);
+		executeShellCommand("am force-stop " + packageName);
+	}
+
+	// call start activity to start the robotuim server application
 	public void startRobotiumServer() throws Exception {
 		report.report("starting robotium server...");
 		boolean started = startActivity(ROBOTIUM_SERVER_PKG, ROBOTIUM_SERVER_ACTIVITY);
@@ -140,13 +162,12 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		Thread.sleep(3000);
 	}
 
-	
-	//TODO - need major fix, not working good at the moment 
+	// TODO - need major fix, not working good at the moment
 	public void startUiAutomatorServer() throws Exception {
 		report.report("startig uiautomator server");
 		if (!isUiAutomatorServerAlive()) {
 			String response = executeShellCommand("uiautomator runtest uiautomator-stub.jar bundle.jar -c com.github.uiautomatorstub.Stub &");
-			if(response.contains("Error")) {
+			if (response.contains("Error")) {
 				// TODO - automate the installation process: ant build ->
 				// ant install -> forward ports
 				throw new Exception("uiautomator server is not on the device");
@@ -160,10 +181,9 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		report.report("uiautomator server was already running");
 	}
 
-	
 	public boolean isUiAutomatorServerAlive() throws Exception {
 		String response = executeShellCommand("ps | grep uiautomator");
-		if(response.contains("uiautomator")) {
+		if (response.contains("uiautomator")) {
 			return true;
 		}
 		return false;
@@ -175,13 +195,13 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 			throw new InstallException("Failed to install: " + result, null);
 		}
 	}
-	
+
 	public void terminateUiAutomatorServer() throws Exception {
 		report.report("about to terminate uiautomator server...");
 		boolean terminated = false;
 		if (isUiAutomatorServerAlive()) {
 			String response = executeShellCommand("killall uiautomator");
-			if(response.contains("Terminated")) {
+			if (response.contains("Terminated")) {
 				terminated = true;
 			}
 		} else {
@@ -193,15 +213,13 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		}
 
 	}
-	
-	
+
 	@Deprecated
 	public List<LogCatMessage> getLogcatMessages(FilteredLogcatListener filteredLogcatListener) throws Exception {
 
 		LogCatReceiverTask logCatReceiverTask = new LogCatReceiverTask(device);
 
 		logCatReceiverTask.addLogCatListener(filteredLogcatListener);
-		
 
 		new Thread(logCatReceiverTask).start();
 
@@ -212,7 +230,6 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		return filteredLogcatListener.getReturnedMessages();
 
 	}
-	
 
 	/**
 	 * The close method is called in the end of the while execution.<br>
@@ -289,13 +306,13 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 	public void addOutput(byte[] data, int offset, int length) {
 		report.report("called");
 		shellOuput = new String(data);
-		
+
 	}
 
 	@Override
 	public void flush() {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 	@Override
@@ -303,7 +320,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		// TODO Auto-generated method stub
 		return false;
 	}
-	
+
 	private static File display(String device, RawImage rawImage, File screenshotFile) throws Exception {
 		BufferedImage image = new BufferedImage(rawImage.width, rawImage.height, BufferedImage.TYPE_INT_RGB);
 		// Dimension size = new Dimension(image.getWidth(), image.getHeight());
@@ -323,7 +340,7 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		ImageIO.write(image, "png", screenshotFile);
 		return screenshotFile;
 	}
-	
+
 	public MobileCoreLogcatRecorder getMobileCoreLogcatRecorder() {
 		return mobileCoreLogcatRecorder;
 	}

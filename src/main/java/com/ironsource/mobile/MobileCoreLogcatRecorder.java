@@ -18,32 +18,57 @@ import com.android.ddmlib.logcat.LogCatReceiverTask;
  */
 public class MobileCoreLogcatRecorder implements LogCatListener {
 
-	private Vector<LogCatMessage> recordedMessages;
+	private Vector<LogCatMessage> rsMessages;
+	private Vector<LogCatMessage> offerWallManagerMessages;
+	private Vector<LogCatMessage> stickeezManagerMessages;
+	private Vector<LogCatMessage> sliderManagerMessages;
 	IDevice device;
 
 	public MobileCoreLogcatRecorder(IDevice device) {
 		this.device = device;
-		recordedMessages = new Vector<LogCatMessage>();
+		rsMessages = new Vector<LogCatMessage>();
+		offerWallManagerMessages = new Vector<LogCatMessage>();
+		stickeezManagerMessages = new Vector<LogCatMessage>();
+		sliderManagerMessages = new Vector<LogCatMessage>();
+		
 	}
 
 	@Override
 	public void log(List<LogCatMessage> msgList) {
 		for (LogCatMessage msg : msgList) {
-			if (msg.getMessage().contains("\"RS\"") ) {
-				recordedMessages.add(msg);
+			if (msg.getMessage().contains("\"RS\"")) {
+				rsMessages.add(msg);
+			}
+			if(msg.getMessage().contains("OfferwallManager")) {
+				offerWallManagerMessages.add(msg);
+			}
+			if(msg.getMessage().contains("StickeezManager")) {
+				stickeezManagerMessages.add(msg);
+			}
+			if(msg.getMessage().contains("SliderMenuManager")) {
+				sliderManagerMessages.add(msg);
 			}
 		}
 	}
 	
-	public List<LogCatMessage> getRecordedMessages() {
-		return new ArrayList<LogCatMessage>(recordedMessages);
+	public List<LogCatMessage> getRsMessages() {
+		return new ArrayList<LogCatMessage>(rsMessages);
+	}
+	public List<LogCatMessage> getOfferwallManagerMessages() {
+		return new ArrayList<LogCatMessage>(offerWallManagerMessages);
+	}
+	public List<LogCatMessage> getStickeezManagerMessages() {
+		return new ArrayList<LogCatMessage>(stickeezManagerMessages);
+	}
+	public List<LogCatMessage> getSliderManagerMessages() {
+		return new ArrayList<LogCatMessage>(sliderManagerMessages);
 	}
 	
 	public void recordMobileCoreLogcatMessages() throws Exception {
 		LogCatReceiverTask logCatReceiverTask = new LogCatReceiverTask(device);
 		logCatReceiverTask.addLogCatListener(this);
 		new Thread(logCatReceiverTask).start();
-		Thread.sleep(2000);
+		Thread.sleep(3000);
 		logCatReceiverTask.removeLogCatListener(this);
 		logCatReceiverTask.stop();
 	}

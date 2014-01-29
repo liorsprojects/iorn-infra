@@ -3,7 +3,7 @@ package com.ironsource.mobile;
 //TODO - add this wherever possible
 public enum RSCode {
 
-	INAPP("W"), IMPRESSION("D"), CLICK("C"), BACK("Q"), CLOSE("-"), INSATLL("+"), REPORT("S"), AI("AI"), ERROR("E");
+	WALL("W"), IMPRESSION("D"), CLICK("C"), BACK("Q"), CLOSE("-"), INSATLL("+"), REPORT("S"), AI("AI"), ERROR("E");
 
 	private String rsCode;
 
