@@ -20,26 +20,24 @@ import org.apache.commons.io.FileUtils;
 import com.android.ddmlib.AndroidDebugBridge;
 import com.android.ddmlib.AndroidDebugBridge.IDeviceChangeListener;
 import com.android.ddmlib.IDevice;
-import com.android.ddmlib.IShellOutputReceiver;
 import com.android.ddmlib.InstallException;
+import com.android.ddmlib.MultiLineReceiver;
 import com.android.ddmlib.RawImage;
 import com.android.ddmlib.logcat.LogCatMessage;
 import com.android.ddmlib.logcat.LogCatReceiverTask;
 
 //TODO - forward also automatically
-public class ADBConnection extends SystemObjectImpl implements IDeviceChangeListener, IShellOutputReceiver {
+public class ADBConnection extends SystemObjectImpl implements IDeviceChangeListener {
 
-	private final String ROBOTIUM_SERVER_PKG = "il.co.topq.mobile.server.application";
-	private final String ROBOTIUM_SERVER_ACTIVITY = "RobotiumServerActivity";
+	public final String ROBOTIUM_SERVER_PKG = "il.co.topq.mobile.server.application";
+	public final String ROBOTIUM_SERVER_ACTIVITY = "RobotiumServerActivity";
+	public final String MCTESTER_PKG = "com.mobilecore.mctester";
+	public final String MCTESTER_ACTIVITY = "MainActivity";
 
 	private IDevice device;
 	private AndroidDebugBridge adb;
 	private File adbLocation;
-	private String shellOuput;
 	private MobileCoreLogcatRecorder mobileCoreLogcatRecorder;
-
-	@SuppressWarnings("unused")
-	private boolean cancelShellCommand = false;
 
 	@Override
 	public void init() throws Exception {
@@ -64,16 +62,16 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 		mobileCoreLogcatRecorder.recordMobileCoreLogcatMessages();
 		List<LogCatMessage> returnedMessages = null;
 		switch (msgCode) {
-		case RS:			
+		case RS:
 			returnedMessages = mobileCoreLogcatRecorder.getRsMessages();
 			break;
-		case OFFERWALL_MANAGER:			
+		case OFFERWALL_MANAGER:
 			returnedMessages = mobileCoreLogcatRecorder.getOfferwallManagerMessages();
 			break;
-		case STICKEEZ_MANAGER:			
+		case STICKEEZ_MANAGER:
 			returnedMessages = mobileCoreLogcatRecorder.getStickeezManagerMessages();
 			break;
-		case SLIDER_MANAGER:			
+		case SLIDER_MANAGER:
 			returnedMessages = mobileCoreLogcatRecorder.getSliderManagerMessages();
 			break;
 		default:
@@ -95,7 +93,6 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 				// Not important
 			}
 		}
-
 	}
 
 	public File getScreenshotWithAdb(File screenshotFile) throws Exception {
@@ -117,25 +114,26 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 			throw new Exception("could not clear logcat");
 	}
 
-	// execute adb shell command with default timeout of 10 seconds and return
 	// the response form the shell
 	private String executeShellCommand(String cmd) throws Exception {
-		long maxTimeToWait = 10000L;
-		shellOuput = "";
+		report.report("In execute shell command with command: " + cmd);
+		CollectingOutputReceiver receiver = new CollectingOutputReceiver();
 		try {
-			device.executeShellCommand(cmd, this, maxTimeToWait, TimeUnit.MILLISECONDS);
+			device.executeShellCommand(cmd, receiver, 3000, TimeUnit.MILLISECONDS);
+			report.report("Executed");
+			Thread.sleep(3000);
 		} catch (Exception e) {
-			throw e;
+			report.report(e.getMessage());
 		}
-		return shellOuput;
+		return receiver.getOutput();
 	}
 
 	// start activity with an adb command
 	public boolean startActivity(String packageName, String activityName) throws Exception {
 		String activity = String.format("%s/.%s", packageName, activityName);
 		report.report("starting activity: " + activity);
-		executeShellCommand("am start -n " + activity);
-		if (shellOuput.contains("Error type 3")) {
+		String startRes = executeShellCommand("am start -n " + activity);
+		if (startRes.contains("Error type 3")) {
 			report.report("activity not found");
 			return false;
 		}
@@ -165,28 +163,27 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 	// TODO - need major fix, not working good at the moment
 	public void startUiAutomatorServer() throws Exception {
 		report.report("startig uiautomator server");
-		if (!isUiAutomatorServerAlive()) {
-			String response = executeShellCommand("uiautomator runtest uiautomator-stub.jar bundle.jar -c com.github.uiautomatorstub.Stub &");
-			if (response.contains("Error")) {
-				// TODO - automate the installation process: ant build ->
-				// ant install -> forward ports
-				throw new Exception("uiautomator server is not on the device");
+		String psRes = executeShellCommand("ps | grep uiautomator");
+		if (psRes.contains("uiautomator")) {
+			String[] ps = psRes.split("\\s+");
+			report.report("kill app with name " + ps[1]);
+			executeShellCommand("kill " + ps[1]);
+			Thread.sleep(2000);
+		}
+		String startAutomatorServiceRes = executeShellCommand("uiautomator runtest uiautomator-stub.jar bundle.jar -c com.github.uiautomatorstub.Stub &");
+		Thread.sleep(5000);
+		if (startAutomatorServiceRes.contains("INSTRUMENTATION_STATUS: current=1")) {
+			Thread.sleep(2000);
+			String verifyPsRes = executeShellCommand("ps | grep uiautomator");
+			if (verifyPsRes.contains("uiautomator")) {
+				report.report("uiautomator server started");
+				Thread.sleep(2000);
+				device.createForward(9008, 9008);
+				Thread.sleep(1000);
 			}
-			report.report("uiautomator server started");
-			Thread.sleep(5000);
-			device.createForward(9008, 9008);
-			Thread.sleep(1000);
-			return;
+		} else {
+			throw new Exception("uiautomator server is not on the device");
 		}
-		report.report("uiautomator server was already running");
-	}
-
-	public boolean isUiAutomatorServerAlive() throws Exception {
-		String response = executeShellCommand("ps | grep uiautomator");
-		if (response.contains("uiautomator")) {
-			return true;
-		}
-		return false;
 	}
 
 	public void installPackage(String apkLocation, boolean reinstall) throws InstallException {
@@ -198,19 +195,19 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 
 	public void terminateUiAutomatorServer() throws Exception {
 		report.report("about to terminate uiautomator server...");
-		boolean terminated = false;
-		if (isUiAutomatorServerAlive()) {
-			String response = executeShellCommand("killall uiautomator");
-			if (response.contains("Terminated")) {
-				terminated = true;
-			}
-		} else {
-			report.report("uiautomator server is already terminated, skipping action");
-			terminated = true;
-		}
-		if (!terminated) {
-			throw new Exception("uiautomator server could not be stopped");
-		}
+		// boolean terminated = false;
+		// if (isUiAutomatorServerAlive()) {
+		// String response = executeShellCommand("killall uiautomator");
+		// if (response.contains("Terminated")) {
+		// terminated = true;
+		// }
+		// } else {
+		// report.report("uiautomator server is already terminated, skipping action");
+		// terminated = true;
+		// }
+		// if (!terminated) {
+		// throw new Exception("uiautomator server could not be stopped");
+		// }
 
 	}
 
@@ -300,25 +297,6 @@ public class ADBConnection extends SystemObjectImpl implements IDeviceChangeList
 			throw new IOException("Failed to find adb in " + root.getAbsolutePath());
 		}
 		throw new IOException("Failed to find adb in " + root.getAbsolutePath());
-	}
-
-	@Override
-	public void addOutput(byte[] data, int offset, int length) {
-		report.report("called");
-		shellOuput = new String(data);
-
-	}
-
-	@Override
-	public void flush() {
-		// TODO Auto-generated method stub
-
-	}
-
-	@Override
-	public boolean isCancelled() {
-		// TODO Auto-generated method stub
-		return false;
 	}
 
 	private static File display(String device, RawImage rawImage, File screenshotFile) throws Exception {

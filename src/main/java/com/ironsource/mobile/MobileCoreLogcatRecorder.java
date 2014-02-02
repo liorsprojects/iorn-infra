@@ -22,6 +22,7 @@ public class MobileCoreLogcatRecorder implements LogCatListener {
 	private Vector<LogCatMessage> offerWallManagerMessages;
 	private Vector<LogCatMessage> stickeezManagerMessages;
 	private Vector<LogCatMessage> sliderManagerMessages;
+	private Vector<LogCatMessage> mobileCoreMessages;
 	IDevice device;
 
 	public MobileCoreLogcatRecorder(IDevice device) {
@@ -30,6 +31,7 @@ public class MobileCoreLogcatRecorder implements LogCatListener {
 		offerWallManagerMessages = new Vector<LogCatMessage>();
 		stickeezManagerMessages = new Vector<LogCatMessage>();
 		sliderManagerMessages = new Vector<LogCatMessage>();
+		mobileCoreMessages = new Vector<LogCatMessage>();
 		
 	}
 
@@ -48,6 +50,9 @@ public class MobileCoreLogcatRecorder implements LogCatListener {
 			if(msg.getMessage().contains("SliderMenuManager")) {
 				sliderManagerMessages.add(msg);
 			}
+			if(msg.getMessage().contains("MobileCoreReport")) {
+				sliderManagerMessages.add(msg);
+			}
 		}
 	}
 	
@@ -62,6 +67,9 @@ public class MobileCoreLogcatRecorder implements LogCatListener {
 	}
 	public List<LogCatMessage> getSliderManagerMessages() {
 		return new ArrayList<LogCatMessage>(sliderManagerMessages);
+	}
+	public List<LogCatMessage> getMobileCoreMessages() {
+		return new ArrayList<LogCatMessage>(mobileCoreMessages);
 	}
 	
 	public void recordMobileCoreLogcatMessages() throws Exception {
